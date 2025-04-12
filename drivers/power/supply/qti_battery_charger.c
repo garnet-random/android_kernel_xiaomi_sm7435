@@ -222,6 +222,8 @@ enum xm_property_id {
 	XM_PROP_INPUT_SUSPEND,
 	XM_PROP_FASTCHGMODE,
 	XM_PROP_NIGHT_CHARGING,
+	XM_PROP_BLANK_STATUS,
+	XM_PROP_SCREEN_CCTOG,
 	XM_PROP_SOC_DECIMAL,
 	XM_PROP_SOC_DECIMAL_RATE,
 	XM_PROP_QUICK_CHARGE_TYPE,
@@ -4682,6 +4684,68 @@ static ssize_t night_charging_show(struct class *c,
 }
 static CLASS_ATTR_RW(night_charging);
 
+static ssize_t blank_status_store(struct class *c, struct class_attribute *attr,
+				  const char *buf, size_t count)
+{
+	struct battery_chg_dev *bcdev =
+		container_of(c, struct battery_chg_dev, battery_class);
+	int rc;
+	bool val;
+	if (kstrtobool(buf, &val))
+		return -EINVAL;
+	pr_err("set blank state %d\n", val);
+	rc = write_property_id(bcdev, &bcdev->psy_list[PSY_TYPE_XM],
+			       XM_PROP_BLANK_STATUS, val);
+	if (rc < 0)
+		return rc;
+	return count;
+}
+static ssize_t blank_status_show(struct class *c, struct class_attribute *attr,
+				 char *buf)
+{
+	struct battery_chg_dev *bcdev =
+		container_of(c, struct battery_chg_dev, battery_class);
+	struct psy_state *pst = &bcdev->psy_list[PSY_TYPE_XM];
+	int rc;
+	rc = read_property_id(bcdev, pst, XM_PROP_BLANK_STATUS);
+	if (rc < 0)
+		return rc;
+	return scnprintf(buf, PAGE_SIZE, "%u\n",
+			 pst->prop[XM_PROP_BLANK_STATUS]);
+}
+static CLASS_ATTR_RW(blank_status);
+
+static ssize_t screen_cctog_store(struct class *c, struct class_attribute *attr,
+				  const char *buf, size_t count)
+{
+	struct battery_chg_dev *bcdev =
+		container_of(c, struct battery_chg_dev, battery_class);
+	int rc;
+	bool val;
+	if (kstrtobool(buf, &val))
+		return -EINVAL;
+	pr_err("set screen CCtoggle status to %d\n", val);
+	rc = write_property_id(bcdev, &bcdev->psy_list[PSY_TYPE_XM],
+			       XM_PROP_SCREEN_CCTOG, val);
+	if (rc < 0)
+		return rc;
+	return count;
+}
+static ssize_t screen_cctog_show(struct class *c, struct class_attribute *attr,
+				 char *buf)
+{
+	struct battery_chg_dev *bcdev =
+		container_of(c, struct battery_chg_dev, battery_class);
+	struct psy_state *pst = &bcdev->psy_list[PSY_TYPE_XM];
+	int rc;
+	rc = read_property_id(bcdev, pst, XM_PROP_SCREEN_CCTOG);
+	if (rc < 0)
+		return rc;
+	return scnprintf(buf, PAGE_SIZE, "%u\n",
+			 pst->prop[XM_PROP_SCREEN_CCTOG]);
+}
+static CLASS_ATTR_RW(screen_cctog);
+
 static ssize_t fake_temp_store(struct class *c, struct class_attribute *attr,
 			       const char *buf, size_t count)
 {
@@ -7430,6 +7494,8 @@ static struct attribute *battery_class_attrs[] = {
 	&class_attr_input_suspend.attr,
 	&class_attr_fastchg_mode.attr,
 	&class_attr_night_charging.attr,
+	&class_attr_blank_status.attr,
+	&class_attr_screen_cctog.attr,
 	&class_attr_shutdown_delay.attr,
 	&class_attr_soc_decimal.attr,
 	&class_attr_soc_decimal_rate.attr,
@@ -7916,6 +7982,10 @@ screen_state_for_charge_callback(enum panel_event_notifier_tag notifier_tag,
 			return;
 		}
 
+		if (write_property_id(bcdev, &bcdev->psy_list[PSY_TYPE_XM],
+				      XM_PROP_BLANK_STATUS,
+				      blank_state) < 0)
+			pr_err("%s blank state notify fail\n", __func__);
 		if (!bcdev->support_soc_update || bcdev->support_screen_update)
 			schedule_work(&bcdev->notify_blankstate_work);
 	} else if (notifier_tag == PANEL_EVENT_NOTIFICATION_SECONDARY) {
