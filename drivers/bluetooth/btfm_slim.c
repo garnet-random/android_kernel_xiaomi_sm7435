@@ -21,6 +21,9 @@
 #include <sound/tlv.h>
 #include "btfm_slim.h"
 #include "btfm_slim_slave.h"
+#ifdef CONFIG_MIEV
+#include "miev/mievent.h"
+#endif
 #define DELAY_FOR_PORT_OPEN_MS (200)
 #define SLIM_MANF_ID_QCOM	0x217
 #define SLIM_PROD_CODE		0x221
@@ -315,6 +318,9 @@ int btfm_slim_hw_init(struct btfmslim *btfmslim)
 	int chipset_ver;
 	struct slim_device *slim;
 	struct slim_device *slim_ifd;
+#ifdef CONFIG_MIEV
+	struct misight_mievent *mievent;
+#endif
 
 	BTFMSLIM_DBG("");
 	if (!btfmslim)
@@ -482,6 +488,15 @@ int btfm_slim_hw_init(struct btfmslim *btfmslim)
 	btfmslim->enabled = 1;
 error:
 	mutex_unlock(&btfmslim->io_lock);
+#ifdef CONFIG_MIEV
+	if (1 != btfmslim->enabled) {
+		mievent = cdev_tevent_alloc(917043204);
+		cdev_tevent_add_str(mievent, "btSlimbusError",
+				    "btfm_slim_hw_init error");
+		cdev_tevent_write(mievent);
+		cdev_tevent_destroy(mievent);
+	}
+#endif
 	return ret;
 }
 
