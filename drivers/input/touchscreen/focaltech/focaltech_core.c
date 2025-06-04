@@ -1372,17 +1372,147 @@ static int fts_read_parse_touchdata(struct fts_ts_data *ts_data, u8 *touch_buf)
 static int fts_irq_read_report(struct fts_ts_data *ts_data)
 {
 	int ret = 0;
+	int i = 0;
+	int max_touch_num = ts_data->pdata->max_touch_number;
 	int touch_etype = 0;
+	u8 event_num = 0;
+	u8 finger_num = 0;
+	u8 pointid = 0;
+	u8 base = 0;
 	u8 *touch_buf = ts_data->touch_buf;
+	struct ts_event *events = ts_data->events;
 
 	touch_etype = fts_read_parse_touchdata(ts_data, touch_buf);
 	switch (touch_etype) {
 	case TOUCH_DEFAULT:
-		ret = fts_input_report_touch(ts_data, touch_buf);
+		finger_num = touch_buf[FTS_TOUCH_E_NUM] & 0x0F;
+		if (finger_num > max_touch_num) {
+			FTS_ERROR("invalid point_num(%d)", finger_num);
+			return -EIO;
+		}
+
+		for (i = 0; i < max_touch_num; i++) {
+			base = FTS_ONE_TCH_LEN * i + 2;
+			pointid = (touch_buf[FTS_TOUCH_OFF_ID_YH + base]) >> 4;
+			if (pointid >= FTS_MAX_ID)
+				break;
+			else if (pointid >= max_touch_num) {
+				FTS_ERROR("ID(%d) beyond max_touch_number",
+					  pointid);
+				return -EINVAL;
+			}
+
+			events[i].id = pointid;
+			events[i].flag =
+				touch_buf[FTS_TOUCH_OFF_E_XH + base] >> 6;
+			events[i].x =
+				((touch_buf[FTS_TOUCH_OFF_E_XH + base] & 0x0F)
+				 << 8) +
+				(touch_buf[FTS_TOUCH_OFF_XL + base] & 0xFF);
+			events[i].y =
+				((touch_buf[FTS_TOUCH_OFF_ID_YH + base] & 0x0F)
+				 << 8) +
+				(touch_buf[FTS_TOUCH_OFF_YL + base] & 0xFF);
+			events[i].p = touch_buf[FTS_TOUCH_OFF_PRE + base];
+			events[i].area = touch_buf[FTS_TOUCH_OFF_AREA + base];
+			if (events[i].p <= 0)
+				events[i].p = 0x3F;
+			if (events[i].area <= 0)
+				events[i].area = 0x09;
+			events[i].minor = events[i].area;
+
+			event_num++;
+			if (EVENT_DOWN(events[i].flag) && (finger_num == 0)) {
+				FTS_INFO("abnormal touch data from fw");
+				return -EIO;
+			}
+		}
+
+		if (event_num == 0) {
+			FTS_INFO("no touch point information(%02x)",
+				 touch_buf[2]);
+			return -EIO;
+		}
+		ts_data->touch_event_num = event_num;
+
+		mutex_lock(&ts_data->report_mutex);
+#if FTS_MT_PROTOCOL_B_EN
+		fts_input_report_b(ts_data, events);
+#else
+		fts_input_report_a(ts_data, events);
+#endif
+		mutex_unlock(&ts_data->report_mutex);
 		break;
 
 	case TOUCH_PROTOCOL_v2:
-		ret = fts_input_report_touch_pv2(ts_data, touch_buf);
+		event_num = touch_buf[FTS_TOUCH_E_NUM] & 0x0F;
+		if (!event_num || (event_num > max_touch_num)) {
+			FTS_ERROR("invalid touch event num(%d)", event_num);
+			return -EIO;
+		}
+
+		ts_data->touch_event_num = event_num;
+
+		for (i = 0; i < event_num; i++) {
+			/* base = FTS_ONE_TCH_LEN_V2 * i + 4;
+             pointid = (touch_buf[FTS_TOUCH_OFF_ID_YH + base]) >> 4;
+             if (pointid >= FTS_MAX_ID)
+                 break;
+             else if (pointid >= max_touch_num) {
+                 FTS_ERROR("ID(%d) beyond max_touch_number", pointid);
+                 return -EINVAL;
+             }*/
+
+			base = FTS_ONE_TCH_LEN_V2 * i + 4;
+			pointid = (touch_buf[FTS_TOUCH_OFF_ID_YH + base]) >> 4;
+			if (pointid >= max_touch_num) {
+				FTS_ERROR(
+					"touch point ID(%d) beyond max_touch_number(%d)",
+					pointid, max_touch_num);
+				return -EINVAL;
+			}
+
+			events[i].id = pointid;
+			events[i].flag =
+				touch_buf[FTS_TOUCH_OFF_E_XH + base] >> 6;
+
+			events[i].x =
+				((touch_buf[FTS_TOUCH_OFF_E_XH + base] & 0x0F)
+				 << 12) +
+				((touch_buf[FTS_TOUCH_OFF_XL + base] & 0xFF)
+				 << 4) +
+				((touch_buf[FTS_TOUCH_OFF_PRE + base] >> 4) &
+				 0x0F);
+
+			events[i].y =
+				((touch_buf[FTS_TOUCH_OFF_ID_YH + base] & 0x0F)
+				 << 12) +
+				((touch_buf[FTS_TOUCH_OFF_YL + base] & 0xFF)
+				 << 4) +
+				(touch_buf[FTS_TOUCH_OFF_PRE + base] & 0x0F);
+
+			/* N17 code for HQ-305170 by liunianliang at 2023/07/08 start */
+			events[i].x = events[i].x * 16 / FTS_HI_RES_X_MAX;
+			events[i].y = events[i].y * 16 / FTS_HI_RES_X_MAX;
+			/* N17 code for HQ-305170 by liunianliang at 2023/07/08 end */
+			events[i].area = touch_buf[FTS_TOUCH_OFF_AREA + base];
+			events[i].minor = touch_buf[FTS_TOUCH_OFF_MINOR + base];
+			events[i].p = 0x3F;
+
+			if (events[i].area <= 0)
+				events[i].area = 0x09;
+			if (events[i].minor <= 0)
+				events[i].minor = 0x09;
+		}
+
+		mutex_lock(&ts_data->report_mutex);
+#if FTS_MT_PROTOCOL_B_EN
+		fts_input_report_b(ts_data, events);
+#else
+		fts_input_report_a(ts_data, events);
+#endif
+		mutex_unlock(&ts_data->report_mutex);
+
 		break;
 
 #if FTS_PEN_EN
