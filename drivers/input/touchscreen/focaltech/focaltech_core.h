@@ -185,6 +185,7 @@ struct fts_ts_platform_data {
 	u32 fod_ly;
 	u32 fod_x_size;
 	u32 fod_y_size;
+	u32 super_res;
 };
 
 struct ts_event {
