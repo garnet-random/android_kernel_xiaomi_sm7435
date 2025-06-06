@@ -314,6 +314,8 @@ struct fts_ts_data {
 	struct notifier_block fb_notif;
 	void *notifier_cookie;
 	struct mutex cmd_update_mutex;
+	u8 gesture_status;
+	int fod_status;
 
 };
 
@@ -342,6 +344,12 @@ enum _FTS_TOUCH_ETYPE {
 enum _FTS_STYLUS_ETYPE {
 	STYLUS_DEFAULT,
 	STYLUS_HOVER,
+};
+
+enum GESTURE_MODE_TYPE {
+	GESTURE_DOUBLETAP,
+	GESTURE_AOD,
+	GESTURE_FOD,
 };
 
 enum _FTS_GESTURE_BMODE {
@@ -380,6 +388,8 @@ void fts_gesture_recovery(struct fts_ts_data *ts_data);
 int fts_gesture_readdata(struct fts_ts_data *ts_data, u8 *data);
 int fts_gesture_suspend(struct fts_ts_data *ts_data);
 int fts_gesture_resume(struct fts_ts_data *ts_data);
+int fts_gesture_reg_write(u8 mask, bool enable);
+int fts_fod_reg_write(u8 mask, bool enable);
 
 #if FTS_FOD_EN
 void fts_fod_enable(int enable);

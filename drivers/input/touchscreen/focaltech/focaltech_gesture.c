@@ -33,6 +33,7 @@
 * 1.Included header files
 *****************************************************************************/
 #include "focaltech_core.h"
+#include "../xiaomi/xiaomi_touch.h"
 
 /******************************************************************************
 * Private constant and macro definitions using #define
@@ -66,6 +67,7 @@
 #define GESTURE_V 0x54
 #define GESTURE_Z 0x41
 #define GESTURE_C 0x34
+#define GESTURE_FOD_PRESS 0x26
 
 /*****************************************************************************
 * Private enumerations, structures and unions using typedef
@@ -268,6 +270,9 @@ static void fts_gesture_report(struct input_dev *input_dev, int gesture_id)
 	int gesture;
 
 	FTS_DEBUG("gesture_id:0x%x", gesture_id);
+	if (gesture_id == GESTURE_FOD_PRESS) {
+		update_fod_press_status(1);
+	}
 	switch (gesture_id) {
 	case GESTURE_LEFT:
 		gesture = KEY_GESTURE_LEFT;
@@ -282,7 +287,7 @@ static void fts_gesture_report(struct input_dev *input_dev, int gesture_id)
 		gesture = KEY_GESTURE_DOWN;
 		break;
 	case GESTURE_DOUBLECLICK:
-		gesture = KEY_GESTURE_U;
+		gesture = KEY_WAKEUP;
 		break;
 	case GESTURE_O:
 		gesture = KEY_GESTURE_O;
@@ -375,6 +380,10 @@ int fts_gesture_readdata(struct fts_ts_data *ts_data, u8 *touch_buf)
 	gesture->point_num = buf[3];
 	FTS_DEBUG("gesture_id=%d, point_num=%d", gesture->gesture_id,
 		  gesture->point_num);
+	if (gesture->gesture_id == GESTURE_DOUBLECLICK && !(ts_data->gesture_status & 0x01)) {
+		FTS_INFO("double click is not enabled!");
+		return 1;
+	}
 
 	/* save point data,max:6 */
 	for (i = 0; i < FTS_GESTURE_POINTS_MAX; i++) {
@@ -401,6 +410,7 @@ void fts_gesture_recovery(struct fts_ts_data *ts_data)
 		fts_write_reg(0xD7, 0xFF);
 		fts_write_reg(0xD8, 0xFF);
 		fts_write_reg(FTS_REG_GESTURE_EN, ENABLE);
+		fts_fod_reg_write(FTS_REG_GESTURE_DOUBLETAP_ON, true);
 		fts_msleep(1);
 		fts_read_reg(FTS_REG_GESTURE_EN, &state);
 		if (state != ENABLE) {
@@ -413,6 +423,7 @@ int fts_gesture_suspend(struct fts_ts_data *ts_data)
 {
 	int i = 0;
 	u8 state = 0xFF;
+	int ret;
 
 	FTS_FUNC_ENTER();
 
@@ -434,6 +445,13 @@ int fts_gesture_suspend(struct fts_ts_data *ts_data)
 	if ((ts_data->fod_mode) && (ts_data->fod_mode != 3)) {
 		fts_write_reg(FTS_REG_FOD_MODE_EN, FTS_VAL_FOD_ENABLE);
 	}
+	ret = fts_fod_reg_write(FTS_REG_GESTURE_DOUBLETAP_ON, true);
+
+	if (ret) {
+		FTS_ERROR("[GESTURE]Enter into gesture(suspend) failed!\n");
+		// fts_gesture_data.active = DISABLE;
+		return -EIO;
+	}
 
 	if (i >= FTS_MAX_RETRIES_WRITEREG)
 		FTS_ERROR("make IC enter into gesture(suspend) fail,state:%x",
@@ -449,6 +467,7 @@ int fts_gesture_resume(struct fts_ts_data *ts_data)
 {
 	int i = 0;
 	u8 state = 0xFF;
+	int ret;
 
 	FTS_FUNC_ENTER();
 	for (i = 0; i < FTS_MAX_RETRIES_WRITEREG; i++) {
@@ -457,6 +476,12 @@ int fts_gesture_resume(struct fts_ts_data *ts_data)
 		fts_read_reg(FTS_REG_GESTURE_EN, &state);
 		if (state == DISABLE)
 			break;
+	}
+
+	ret = fts_fod_reg_write(FTS_REG_GESTURE_DOUBLETAP_ON, false);
+	if (ret) {
+		FTS_ERROR("[GESTURE]resume from gesture(suspend) failed!\n");
+		return -EIO;
 	}
 
 	if (i >= FTS_MAX_RETRIES_WRITEREG)
@@ -479,6 +504,7 @@ int fts_gesture_init(struct fts_ts_data *ts_data)
 	FTS_FUNC_ENTER();
 	input_set_capability(input_dev, EV_KEY, KEY_POWER);
 	input_set_capability(input_dev, EV_KEY, KEY_GESTURE_U);
+	input_set_capability(input_dev, EV_KEY, KEY_WAKEUP);
 	input_set_capability(input_dev, EV_KEY, KEY_GESTURE_UP);
 	input_set_capability(input_dev, EV_KEY, KEY_GESTURE_DOWN);
 	input_set_capability(input_dev, EV_KEY, KEY_GESTURE_LEFT);
@@ -497,6 +523,7 @@ int fts_gesture_init(struct fts_ts_data *ts_data)
 	__set_bit(KEY_GESTURE_RIGHT, input_dev->keybit);
 	__set_bit(KEY_GESTURE_LEFT, input_dev->keybit);
 	__set_bit(KEY_GESTURE_UP, input_dev->keybit);
+	__set_bit(KEY_WAKEUP, input_dev->keybit);
 	__set_bit(KEY_GESTURE_DOWN, input_dev->keybit);
 	__set_bit(KEY_GESTURE_U, input_dev->keybit);
 	__set_bit(KEY_GESTURE_O, input_dev->keybit);
