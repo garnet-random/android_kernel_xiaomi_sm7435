@@ -810,6 +810,22 @@ static int fts_input_report_key(struct fts_ts_data *ts_data,
 	return -EINVAL;
 }
 
+#if IS_ENABLED(FTS_FOD_EN)
+static bool fts_is_in_fodarea(int x, int y)
+{
+	if (!fts_data)
+		return false;
+
+	if ((x > fts_data->pdata->fod_lx &&
+	     x < fts_data->pdata->fod_lx + fts_data->pdata->fod_x_size) &&
+	    (y > fts_data->pdata->fod_ly &&
+	     y < fts_data->pdata->fod_ly + fts_data->pdata->fod_y_size))
+		return true;
+	else
+		return false;
+}
+#endif
+
 #if FTS_MT_PROTOCOL_B_EN
 static int fts_input_report_b(struct fts_ts_data *ts_data,
 			      struct ts_event *events)
@@ -864,6 +880,11 @@ static int fts_input_report_b(struct fts_ts_data *ts_data,
 			if (ts_data->log_level >= 1)
 				FTS_DEBUG("[B]P%d UP!", events[i].id);
 		}
+#if IS_ENABLED(FTS_FOD_EN)
+		if (fts_is_in_fodarea(events[ts_data->touch_event_num - 1].x,
+				      events[ts_data->touch_event_num - 1].y))
+			update_fod_press_status(1);
+#endif
 	}
 
 	if (unlikely(touch_point_pre ^ touch_down_point_cur)) {
@@ -885,6 +906,9 @@ static int fts_input_report_b(struct fts_ts_data *ts_data,
 		if (ts_data->touch_points && (ts_data->log_level >= 1))
 			FTS_DEBUG("[B]Points All Up!");
 		input_report_key(input_dev, BTN_TOUCH, 0);
+#if IS_ENABLED(FTS_FOD_EN)
+		update_fod_press_status(0);
+#endif
 	}
 
 	ts_data->touch_points = touch_down_point_cur;
@@ -2323,6 +2347,37 @@ static int fts_parse_dt(struct device *dev, struct fts_ts_platform_data *pdata)
 	FTS_INFO("max touch number:%d, irq gpio:%d, reset gpio:%d",
 		 pdata->max_touch_number, pdata->irq_gpio, pdata->reset_gpio);
 
+	pdata->support_fod = of_property_read_bool(np, "focaltech,support-fod");
+	FTS_DEBUG("Read fod_support: %d", pdata->support_fod);
+	if (!pdata->support_fod)
+		FTS_INFO("FOD support is disabled from device tree");
+
+	ret = of_property_read_u32(np, "focaltech,fod-lx", &pdata->fod_lx);
+	if (ret < 0)
+		FTS_ERROR("Unable to get fod-lx, please check dts");
+	else
+		FTS_INFO("Read fod_lx: %d", pdata->fod_lx);
+
+	ret = of_property_read_u32(np, "focaltech,fod-ly", &pdata->fod_ly);
+	if (ret < 0)
+		FTS_ERROR("Unable to get fod-ly, please check dts");
+	else
+		FTS_INFO("Read fod_ly: %d", pdata->fod_ly);
+
+	ret = of_property_read_u32(np, "focaltech,fod-x-size",
+				   &pdata->fod_x_size);
+	if (ret < 0)
+		FTS_ERROR("Unable to get fod-x-size, please check dts");
+	else
+		FTS_INFO("Read fod-x-size: %d", pdata->fod_x_size);
+
+	ret = of_property_read_u32(np, "focaltech,fod-y-size",
+				   &pdata->fod_y_size);
+	if (ret < 0)
+		FTS_ERROR("Unable to get fod-y-size, please check dts");
+	else
+		FTS_INFO("Read fod-y-size: %d", pdata->fod_y_size);
+
 	FTS_FUNC_EXIT();
 	return 0;
 }
@@ -2652,6 +2707,12 @@ static int fts_set_cur_value(int mode, int value)
 	if (mode >= Touch_Mode_NUM) {
 		FTS_ERROR("mode is error:%d", mode);
 		return -EINVAL;
+	}
+	if ((mode == Touch_Fod_Enable || mode == THP_FOD_DOWNUP_CTL) &&
+	    value >= 0) {
+		FTS_INFO("Mode:FOD fod_status = %d", value);
+		fts_data->pdata->fod_status = value;
+		return 0;
 	}
 
 	xiaomi_touch_interfaces.touch_mode[mode][SET_CUR_VALUE] = value;
