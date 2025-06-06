@@ -314,6 +314,7 @@ struct fts_ts_data {
 	struct notifier_block fb_notif;
 	void *notifier_cookie;
 	struct mutex cmd_update_mutex;
+	u8 gesture_status;
 
 };
 
@@ -342,6 +343,10 @@ enum _FTS_TOUCH_ETYPE {
 enum _FTS_STYLUS_ETYPE {
 	STYLUS_DEFAULT,
 	STYLUS_HOVER,
+};
+
+enum GESTURE_MODE_TYPE {
+	GESTURE_DOUBLETAP,
 };
 
 enum _FTS_GESTURE_BMODE {

@@ -284,7 +284,7 @@ static void fts_gesture_report(struct input_dev *input_dev, int gesture_id)
 		gesture = KEY_GESTURE_DOWN;
 		break;
 	case GESTURE_DOUBLECLICK:
-		gesture = KEY_GESTURE_U;
+		gesture = KEY_WAKEUP;
 		break;
 	case GESTURE_O:
 		gesture = KEY_GESTURE_O;
@@ -380,6 +380,10 @@ int fts_gesture_readdata(struct fts_ts_data *ts_data, u8 *touch_buf)
 	gesture->point_num = buf[3];
 	FTS_DEBUG("gesture_id=%d, point_num=%d", gesture->gesture_id,
 		  gesture->point_num);
+	if (gesture->gesture_id == GESTURE_DOUBLECLICK && !(ts_data->gesture_status & 0x01)) {
+		FTS_INFO("double click is not enabled!");
+		return 1;
+	}
 
 	/* save point data,max:6 */
 	for (i = 0; i < FTS_GESTURE_POINTS_MAX; i++) {
@@ -484,6 +488,7 @@ int fts_gesture_init(struct fts_ts_data *ts_data)
 	FTS_FUNC_ENTER();
 	input_set_capability(input_dev, EV_KEY, KEY_POWER);
 	input_set_capability(input_dev, EV_KEY, KEY_GESTURE_U);
+	input_set_capability(input_dev, EV_KEY, KEY_WAKEUP);
 	input_set_capability(input_dev, EV_KEY, KEY_GESTURE_UP);
 	input_set_capability(input_dev, EV_KEY, KEY_GESTURE_DOWN);
 	input_set_capability(input_dev, EV_KEY, KEY_GESTURE_LEFT);
@@ -503,6 +508,7 @@ int fts_gesture_init(struct fts_ts_data *ts_data)
 	__set_bit(KEY_GESTURE_RIGHT, input_dev->keybit);
 	__set_bit(KEY_GESTURE_LEFT, input_dev->keybit);
 	__set_bit(KEY_GESTURE_UP, input_dev->keybit);
+	__set_bit(KEY_WAKEUP, input_dev->keybit);
 	__set_bit(KEY_GESTURE_DOWN, input_dev->keybit);
 	__set_bit(KEY_GESTURE_U, input_dev->keybit);
 	__set_bit(KEY_GESTURE_O, input_dev->keybit);
