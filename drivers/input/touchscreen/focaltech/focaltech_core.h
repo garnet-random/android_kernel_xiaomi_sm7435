@@ -294,8 +294,8 @@ struct fts_ts_data {
 	int bus_type;
 	int bus_ver;
 	char customer_info[FTS_MAX_CUSTOMER_INFO];
-	struct regulator *avdd;
-	struct regulator *iovdd;
+	struct regulator *vci;
+	struct regulator *vddio;
 #if FTS_PINCTRL_EN
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pins_active;
