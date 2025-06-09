@@ -650,7 +650,69 @@ static int fts_fod_recovery(struct fts_ts_data *ts_data)
 	if (ts_data->fod_mode) {
 		fts_fod_set_reg(FTS_VAL_FOD_ENABLE);
 	}
+	if (fts_data->suspended) {
+		FTS_INFO("%s, tp is in suspend mode, write 0xD0 to 1",
+			 __func__);
+		fts_gesture_reg_write(FTS_REG_GESTURE_DOUBLETAP_ON, true);
+	}
+	fts_fod_reg_write(FTS_REG_GESTURE_FOD_ON, true);
 	return 0;
+}
+
+int fts_fod_reg_write(u8 mask, bool enable)
+{
+	int i;
+	u8 state;
+	u8 reg_value;
+
+	for (i = 0; i < 5; i++) {
+		fts_read_reg(FTS_REG_GESTURE_SUPPORT, &reg_value);
+		if (enable)
+			reg_value |= mask;
+		else
+			reg_value &= ~mask;
+		fts_write_reg(FTS_REG_GESTURE_SUPPORT, reg_value);
+		msleep(1);
+		fts_read_reg(FTS_REG_GESTURE_SUPPORT, &state);
+		if (state == reg_value)
+			break;
+	}
+
+	if (i >= 5) {
+		FTS_ERROR("[GESTURE]Write fod reg failed!\n");
+		return -EIO;
+	} else {
+		FTS_ERROR("[GESTURE]Write fod reg success!\n");
+		return 0;
+	}
+}
+
+int fts_gesture_reg_write(u8 mask, bool enable)
+{
+	int i;
+	u8 state;
+	u8 reg_value;
+
+	for (i = 0; i < 5; i++) {
+		fts_read_reg(FTS_REG_GESTURE_EN, &reg_value);
+		if (enable)
+			reg_value |= mask;
+		else
+			reg_value &= ~mask;
+		fts_write_reg(FTS_REG_GESTURE_EN, reg_value);
+		msleep(1);
+		fts_read_reg(FTS_REG_GESTURE_EN, &state);
+		if (state == reg_value)
+			break;
+	}
+
+	if (i >= 5) {
+		FTS_ERROR("[GESTURE]Write gesture reg failed!\n");
+		return -EIO;
+	} else {
+		FTS_ERROR("[GESTURE]Write gesture reg success!\n");
+		return 0;
+	}
 }
 
 /*****************************************************************************
@@ -2403,6 +2465,7 @@ static int fts_parse_dt(struct device *dev, struct fts_ts_platform_data *pdata)
 
 static int fts_ts_suspend(struct device *dev)
 {
+	int ret;
 	struct fts_ts_data *ts_data = fts_data;
 
 	FTS_FUNC_ENTER();
@@ -2428,6 +2491,17 @@ static int fts_ts_suspend(struct device *dev)
 		return 0;
 	}
 #endif
+
+	if ((ts_data->fod_status != -1 && ts_data->fod_status != 100)) {
+		ret = fts_fod_reg_write(FTS_REG_GESTURE_FOD_ON, true);
+		if (ret < 0) {
+			FTS_ERROR("%s fts_fod_reg_write failed\n", __func__);
+		}
+		fts_gesture_reg_write(FTS_REG_GESTURE_DOUBLETAP_ON, true);
+		if (ret < 0) {
+			FTS_ERROR("%s fts_fod_reg_write failed\n", __func__);
+		}
+	}
 
 	if (ts_data->gesture_support || ts_data->fod_mode) {
 		fts_gesture_suspend(ts_data);
@@ -2520,6 +2594,7 @@ static int fts_ts_resume(struct device *dev)
 		fts_write_reg(FTS_REG_POWER_MODE, 0);
 		ts_data->pocket_mode = DISABLE;
 	}
+	fts_gesture_reg_write(FTS_REG_GESTURE_DOUBLETAP_ON, false);
 
 	FTS_FUNC_EXIT();
 	return 0;
@@ -2718,21 +2793,32 @@ static int fts_notifier_callback_init(struct fts_ts_data *ts_data)
 	return ret;
 }
 
-static void fts_update_gesture_state(struct fts_ts_data *ts_data, int bit, bool enable)
+static void fts_update_gesture_state(struct fts_ts_data *ts_data, int bit,
+				     bool enable)
 {
-        FTS_INFO("ENTER  gesture update func");
 	if (ts_data->suspended) {
 		FTS_ERROR("TP is suspended, do not update gesture state");
 		return;
 	}
-	mutex_lock(&ts_data->input_dev->mutex);
-	if (enable)
-		ts_data->gesture_status |= 1 << bit;
 
-	else
+	mutex_lock(&ts_data->input_dev->mutex);
+	if (enable) {
+		ts_data->gesture_status |= 1 << bit;
+	} else {
 		ts_data->gesture_status &= ~(1 << bit);
-	FTS_INFO("gesture state:0x%02X", ts_data->gesture_status);
-	ts_data->gesture_support = ts_data->gesture_status != 0 ? ENABLE : DISABLE;
+	}
+	if (bit == 0) {
+		FTS_INFO("mode: DoubleClick;  gesture state:0x%02X",
+			 ts_data->gesture_status);
+	}
+	if (bit == 1) {
+		FTS_INFO("mode: AOD; gesture state:0x%02X",
+			 ts_data->gesture_status);
+	}
+
+	// FTS_INFO("mode: %d  gesture state:0x%02X", bit,ts_data->gesture_status);
+	ts_data->gesture_support =
+		ts_data->gesture_status != 0 ? ENABLE : DISABLE;
 	mutex_unlock(&ts_data->input_dev->mutex);
 }
 
@@ -2764,10 +2850,15 @@ static int fts_set_cur_value(int mode, int value)
 		fts_update_gesture_state(fts_data, GESTURE_DOUBLETAP, value != 0 ? true : false);
 		return 0;
 	}
-	if ((mode == Touch_Fod_Enable || mode == THP_FOD_DOWNUP_CTL) &&
-	    value >= 0) {
+	if (mode == THP_FOD_DOWNUP_CTL && value >= 0) {
 		FTS_INFO("Mode:FOD fod_status = %d", value);
-		fts_data->pdata->fod_status = value;
+		update_fod_press_status(value != 0);
+		return 0;
+	}
+	if (mode == Touch_Fod_Longpress_Gesture && value >= 0) {
+		fts_update_gesture_state(fts_data, GESTURE_FOD,
+					 value != 0 ? true : false);
+		FTS_INFO("Mode:FOD  value = %d", value);
 		return 0;
 	}
 

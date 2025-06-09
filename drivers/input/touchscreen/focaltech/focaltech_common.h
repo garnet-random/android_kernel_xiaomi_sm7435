@@ -128,6 +128,10 @@
 #define FTS_SYSFS_ECHO_OFF(buf) (buf[0] == '0')
 #define FTS_SYSFS_ECHO_UNLOCK(buf) (buf[0] == '2')
 
+#define FTS_REG_GESTURE_DOUBLETAP_ON 0x01
+#define FTS_REG_GESTURE_FOD_ON 0x02
+#define FTS_REG_GESTURE_SUPPORT 0xCF
+
 #define FTS_FOD_DISABLE 0
 #define FTS_FOD_ENABLE 1
 #define FTS_FOD_UNLOCK 2

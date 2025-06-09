@@ -33,6 +33,7 @@
 * 1.Included header files
 *****************************************************************************/
 #include "focaltech_core.h"
+#include "../xiaomi/xiaomi_touch.h"
 
 /******************************************************************************
 * Private constant and macro definitions using #define
@@ -66,6 +67,7 @@
 #define GESTURE_V 0x54
 #define GESTURE_Z 0x41
 #define GESTURE_C 0x34
+#define GESTURE_FOD_PRESS 0x26
 
 /*****************************************************************************
 * Private enumerations, structures and unions using typedef
@@ -268,6 +270,9 @@ static void fts_gesture_report(struct input_dev *input_dev, int gesture_id)
 	int gesture;
 
 	FTS_DEBUG("gesture_id:0x%x", gesture_id);
+	if (gesture_id == GESTURE_FOD_PRESS) {
+		update_fod_press_status(1);
+	}
 	switch (gesture_id) {
 	case GESTURE_LEFT:
 		gesture = KEY_GESTURE_LEFT;
@@ -405,6 +410,7 @@ void fts_gesture_recovery(struct fts_ts_data *ts_data)
 		fts_write_reg(0xD7, 0xFF);
 		fts_write_reg(0xD8, 0xFF);
 		fts_write_reg(FTS_REG_GESTURE_EN, ENABLE);
+		fts_fod_reg_write(FTS_REG_GESTURE_DOUBLETAP_ON, true);
 		fts_msleep(1);
 		fts_read_reg(FTS_REG_GESTURE_EN, &state);
 		if (state != ENABLE) {
@@ -417,6 +423,7 @@ int fts_gesture_suspend(struct fts_ts_data *ts_data)
 {
 	int i = 0;
 	u8 state = 0xFF;
+	int ret;
 
 	FTS_FUNC_ENTER();
 
@@ -438,6 +445,13 @@ int fts_gesture_suspend(struct fts_ts_data *ts_data)
 	if ((ts_data->fod_mode) && (ts_data->fod_mode != 3)) {
 		fts_write_reg(FTS_REG_FOD_MODE_EN, FTS_VAL_FOD_ENABLE);
 	}
+	ret = fts_fod_reg_write(FTS_REG_GESTURE_DOUBLETAP_ON, true);
+
+	if (ret) {
+		FTS_ERROR("[GESTURE]Enter into gesture(suspend) failed!\n");
+		// fts_gesture_data.active = DISABLE;
+		return -EIO;
+	}
 
 	if (i >= FTS_MAX_RETRIES_WRITEREG)
 		FTS_ERROR("make IC enter into gesture(suspend) fail,state:%x",
@@ -453,6 +467,7 @@ int fts_gesture_resume(struct fts_ts_data *ts_data)
 {
 	int i = 0;
 	u8 state = 0xFF;
+	int ret;
 
 	FTS_FUNC_ENTER();
 	for (i = 0; i < FTS_MAX_RETRIES_WRITEREG; i++) {
@@ -461,6 +476,12 @@ int fts_gesture_resume(struct fts_ts_data *ts_data)
 		fts_read_reg(FTS_REG_GESTURE_EN, &state);
 		if (state == DISABLE)
 			break;
+	}
+
+	ret = fts_fod_reg_write(FTS_REG_GESTURE_DOUBLETAP_ON, false);
+	if (ret) {
+		FTS_ERROR("[GESTURE]resume from gesture(suspend) failed!\n");
+		return -EIO;
 	}
 
 	if (i >= FTS_MAX_RETRIES_WRITEREG)
