@@ -2594,6 +2594,9 @@ static int fts_ts_resume(struct device *dev)
 		fts_write_reg(FTS_REG_POWER_MODE, 0);
 		ts_data->pocket_mode = DISABLE;
 	}
+
+	// HACK
+	update_fod_press_status(0);
 	fts_gesture_reg_write(FTS_REG_GESTURE_DOUBLETAP_ON, false);
 
 	FTS_FUNC_EXIT();
