@@ -2814,12 +2814,11 @@ static void fts_update_gesture_state(struct fts_ts_data *ts_data, int bit,
 		FTS_INFO("mode: DoubleClick;  gesture state:0x%02X",
 			 ts_data->gesture_status);
 	}
-	if (bit == 1) {
-		FTS_INFO("mode: AOD; gesture state:0x%02X",
+	if (bit == 2) {
+		FTS_INFO("mode: FOD; gesture state:0x%02X",
 			 ts_data->gesture_status);
 	}
 
-	// FTS_INFO("mode: %d  gesture state:0x%02X", bit,ts_data->gesture_status);
 	ts_data->gesture_support =
 		ts_data->gesture_status != 0 ? ENABLE : DISABLE;
 	mutex_unlock(&ts_data->input_dev->mutex);

@@ -384,6 +384,10 @@ int fts_gesture_readdata(struct fts_ts_data *ts_data, u8 *touch_buf)
 		FTS_INFO("double click is not enabled!");
 		return 1;
 	}
+	if (gesture->gesture_id == GESTURE_FOD_PRESS && !(ts_data->gesture_status & 0x04)) {
+		FTS_INFO("gesture fod press is not enabled!");
+		return 1;
+	}
 
 	/* save point data,max:6 */
 	for (i = 0; i < FTS_GESTURE_POINTS_MAX; i++) {
