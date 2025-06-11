@@ -51,11 +51,13 @@ static int blank_state = 1, sec_blank_state = 1;
 #define BC_WLS_STATUS_SET		0x35
 #define BC_SHIP_MODE_REQ_SET		0x36
 #define BC_SHUTDOWN_REQ_SET 0x37
+#if defined(CONFIG_MI_WIRELESS)
 #define BC_WLS_FW_CHECK_UPDATE		0x40
 #define BC_WLS_FW_PUSH_BUF_REQ		0x41
 #define BC_WLS_FW_UPDATE_STATUS_RESP	0x42
 #define BC_WLS_FW_PUSH_BUF_RESP		0x43
 #define BC_WLS_FW_GET_VERSION		0x44
+#endif
 #define BC_SHUTDOWN_NOTIFY		0x47
 #define BC_HBOOST_VMAX_CLAMP_NOTIFY	0x79
 #define BC_GENERIC_NOTIFY		0x80
@@ -472,6 +474,7 @@ struct xm_set_wls_bin_req_msg {
 	u8 wls_fw_bin[MAX_STR_LEN];
 };
 
+#if defined(CONFIG_MI_WIRELESS)
 struct wireless_fw_check_req {
 	struct pmic_glink_hdr	hdr;
 	u32			fw_version;
@@ -508,6 +511,7 @@ struct wireless_fw_get_version_resp {
 	struct pmic_glink_hdr	hdr;
 	u32			fw_version;
 };
+#endif
 
 struct battery_charger_ship_mode_req_msg {
 	struct pmic_glink_hdr	hdr;
@@ -765,6 +769,7 @@ int unregister_hboost_event_notifier(struct notifier_block *nb)
 }
 EXPORT_SYMBOL(unregister_hboost_event_notifier);
 
+#if defined(CONFIG_MI_WIRELESS)
 static int battery_chg_fw_write(struct battery_chg_dev *bcdev, void *data,
 				int len)
 {
@@ -792,7 +797,7 @@ static int battery_chg_fw_write(struct battery_chg_dev *bcdev, void *data,
 	up_read(&bcdev->state_sem);
 	return rc;
 }
-
+#endif
 static int battery_chg_write(struct battery_chg_dev *bcdev, void *data,
 				int len)
 {
@@ -1192,10 +1197,12 @@ static void handle_message(struct battery_chg_dev *bcdev, void *data,
 	struct xm_ss_auth_resp_msg *ss_auth_resp_msg = data;
 	struct wls_fw_resp_msg *wls_fw_ver_resp_msg = data;
 	struct chg_debug_msg *chg_debug_data = data;
+#if defined(CONFIG_MI_WIRELESS)
 	struct wireless_fw_check_resp *fw_check_msg;
 	struct wireless_fw_push_buf_resp *fw_resp_msg;
 	struct wireless_fw_update_status *fw_update_msg;
 	struct wireless_fw_get_version_resp *fw_ver_msg;
+#endif
 	struct psy_state *pst;
 	bool ack_set = false;
 
@@ -1289,6 +1296,7 @@ static void handle_message(struct battery_chg_dev *bcdev, void *data,
 	case BC_SHUTDOWN_REQ_SET:
 		ack_set = true;
 		break;
+#if defined(CONFIG_MI_WIRELESS)
 	case BC_WLS_FW_CHECK_UPDATE:
 		if (len == sizeof(*fw_check_msg)) {
 			fw_check_msg = data;
@@ -1322,6 +1330,7 @@ static void handle_message(struct battery_chg_dev *bcdev, void *data,
 		} else {
 		}
 		break;
+# endif
 	default:
 		break;
 	}
@@ -2322,6 +2331,7 @@ static void battery_chg_subsys_up_work(struct work_struct *work)
 	}
 }
 
+#if defined(CONFIG_MI_WIRELESS)
 static int wireless_fw_send_firmware(struct battery_chg_dev *bcdev,
 					const struct firmware *fw)
 {
@@ -2577,6 +2587,7 @@ static ssize_t wireless_fw_update_store(struct class *c,
 	return count;
 }
 static CLASS_ATTR_WO(wireless_fw_update);
+#endif
 
 #ifndef CONFIG_MI_CHARGE_PROPERTY
 static ssize_t wireless_type_show(struct class *c, struct class_attribute *attr,
@@ -7447,11 +7458,13 @@ static struct attribute *battery_class_attrs[] = {
 	&class_attr_moisture_detection_en.attr,
 	&class_attr_wireless_boost_en.attr,
 	&class_attr_fake_soc.attr,
+#if defined(CONFIG_MI_WIRELESS)
 	&class_attr_wireless_fw_update.attr,
 	&class_attr_wireless_fw_force_update.attr,
 	&class_attr_wireless_fw_version.attr,
 	&class_attr_wireless_fw_crc.attr,
 	&class_attr_wireless_fw_update_time_ms.attr,
+#endif
 #ifndef CONFIG_MI_CHARGE_PROPERTY
 	&class_attr_wireless_type.attr,
 #endif
