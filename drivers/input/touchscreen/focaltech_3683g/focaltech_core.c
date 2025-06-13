@@ -68,6 +68,8 @@
 
 #define FTS_WAKELOCK_TIMEOUT 5000
 
+#define N16_ID_DET (370 + 101)
+
 /*****************************************************************************
 * Global variable or extern global variabls/functions
 *****************************************************************************/
@@ -2498,6 +2500,28 @@ static int fts_notifier_callback_exit(struct fts_ts_data *ts_data)
 }
 
 long int FTS_CHIP_TYPE = _FT3683G;
+
+/**
+ * fts_check_ts_gpio - check if the touch driver should be
+ *                           used based of touch screen ID GPIO
+ * @dev: pointer to device
+ * @node: devicetree node
+ * return: 0 - driver should be used, <0 driver should not be used
+ */
+int fts_check_ts_gpio(struct device *dev)
+{
+	int gpio_101;
+	gpio_direction_input(N16_ID_DET);
+	gpio_101 = gpio_get_value(N16_ID_DET);
+	FTS_INFO("gpio_101 = %d \n", gpio_101);
+	if (gpio_101) {
+		FTS_INFO("TP is focaltech\n");
+		return 0;
+	} else {
+		FTS_INFO("TP is goodix\n");
+		return -ENODEV;
+	}
+}
 
 int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 {
