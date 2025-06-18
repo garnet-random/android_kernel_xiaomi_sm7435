@@ -34,6 +34,8 @@ struct goodix_ts_core *ts_core;
 #define GOODIX_DEFAULT_CFG_NAME		"goodix_cfg_group.cfg"
 #define GOOIDX_INPUT_PHYS			"goodix_ts/input0"
 
+#define N16_ID_DET (370 + 101)
+
 #if defined(CONFIG_DRM)
 static struct drm_panel *active_panel;
 static void goodix_panel_notifier_callback(enum panel_event_notifier_tag tag,
@@ -951,6 +953,21 @@ int goodix_ts_blocking_notify(enum ts_notify_event evt, void *v)
 }
 
 #if IS_ENABLED(CONFIG_OF)
+int goodix_check_ts_gpio(struct device *dev)
+{
+	int gpio_101;
+	gpio_direction_input(N16_ID_DET);
+	gpio_101 = gpio_get_value(N16_ID_DET);
+	ts_info("gpio_101 = %d \n", gpio_101);
+	if (gpio_101) {
+		ts_info("TP is focaltech\n");
+		return -ENODEV;
+	} else {
+		ts_info("TP is goodix\n");
+		return 0;
+	}
+}
+
 /**
  * goodix_parse_dt_resolution - parse resolution from dt
  * @node: devicetree node
