@@ -31,6 +31,9 @@
 #define SPI_WRITE_FLAG  0xF0
 #define SPI_READ_FLAG   0xF1
 
+#define N16_ID_DET (370 + 95) // 0x1d1 = 465
+#define N16_ID2_DET (370 + 103) // 0x1d7 = 473
+
 static struct platform_device *goodix_pdev;
 struct goodix_bus_interface goodix_spi_bus;
 
@@ -202,6 +205,47 @@ static const struct of_device_id spi_matchs[] = {
 static int goodix_spi_probe(struct spi_device *spi)
 {
 	int ret = 0;
+
+	int gpio_lcd_id1, gpio_lcd_id2;
+	unsigned int ID_DET;
+
+	ret = gpio_request(N16_ID_DET, "goodix_ts_gpio1");
+	if (ret) {
+		ts_err("Failed to request GPIO %d", N16_ID_DET);
+		return ret;
+	}
+	ret = gpio_direction_input(N16_ID_DET);
+	if (ret) {
+		ts_err("Failed to set GPIO %d as input", N16_ID_DET);
+		gpio_free(N16_ID_DET);
+		return ret;
+	}
+	gpio_lcd_id1 = gpio_get_value(N16_ID_DET);
+	gpio_free(N16_ID_DET);
+
+	ret = gpio_request(N16_ID2_DET, "goodix_ts_gpio2");
+	if (ret) {
+		ts_err("Failed to request GPIO %d", N16_ID2_DET);
+		return ret;
+	}
+	ret = gpio_direction_input(N16_ID2_DET);
+	if (ret) {
+		ts_err("Failed to set GPIO %d as input", N16_ID2_DET);
+		gpio_free(N16_ID2_DET);
+		return ret;
+	}
+	gpio_lcd_id2 = gpio_get_value(N16_ID2_DET);
+	gpio_free(N16_ID2_DET);
+
+	ID_DET = gpio_lcd_id2 | (gpio_lcd_id1 << 1);
+
+	ts_info("goodix_spi_probe: gpio_lcd_id1=%d, gpio_lcd_id2=%d, ID_DET=%u",
+		gpio_lcd_id1, gpio_lcd_id2, ID_DET);
+
+	if (ID_DET != 2) {
+		ts_err("GPIO combination not supported, skipping SPI probe");
+		return -ENODEV;
+	}
 
 	ts_info("goodix spi probe in");
 
