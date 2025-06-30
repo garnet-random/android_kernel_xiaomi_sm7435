@@ -48,6 +48,10 @@
 
 #define SPI_DUMMY_BYTE 3
 #define SPI_HEADER_LENGTH 6 /*CRC*/
+
+#define N16_ID_DET (370 + 95) // 0x1d1 = 465
+#define N16_ID2_DET (370 + 103) // 0x1d7 = 473
+
 /*****************************************************************************
 * Private enumerations, structures and unions using typedef
 *****************************************************************************/
@@ -610,12 +614,61 @@ static struct spi_driver fts_ts_spi_driver = {
 static int __init fts_ts_spi_init(void)
 {
 	int ret = 0;
+	int gpio_lcd_id1, gpio_lcd_id2;
+	unsigned int ID_DET;
 
 	FTS_FUNC_ENTER();
+
+	ret = gpio_request(N16_ID_DET, "fts_ts_gpio1");
+	if (ret) {
+		FTS_ERROR("Failed to request GPIO %d", N16_ID_DET);
+		FTS_FUNC_EXIT();
+		return ret;
+	}
+	ret = gpio_direction_input(N16_ID_DET);
+	if (ret) {
+		FTS_ERROR("Failed to set GPIO %d as input", N16_ID_DET);
+		gpio_free(N16_ID_DET);
+		FTS_FUNC_EXIT();
+		return ret;
+	}
+	gpio_lcd_id1 = gpio_get_value(N16_ID_DET);
+	gpio_free(N16_ID_DET);
+
+	ret = gpio_request(N16_ID2_DET, "fts_ts_gpio2");
+	if (ret) {
+		FTS_ERROR("Failed to request GPIO %d", N16_ID2_DET);
+		FTS_FUNC_EXIT();
+		return ret;
+	}
+	ret = gpio_direction_input(N16_ID2_DET);
+	if (ret) {
+		FTS_ERROR("Failed to set GPIO %d as input", N16_ID2_DET);
+		gpio_free(N16_ID2_DET);
+		FTS_FUNC_EXIT();
+		return ret;
+	}
+	gpio_lcd_id2 = gpio_get_value(N16_ID2_DET);
+	gpio_free(N16_ID2_DET);
+
+	ID_DET = gpio_lcd_id2 | (gpio_lcd_id1 << 1);
+
+	FTS_INFO(
+		"fts_ts_spi_init: gpio_lcd_id1=%d, gpio_lcd_id2=%d, ID_DET=%u\n",
+		gpio_lcd_id1, gpio_lcd_id2, ID_DET);
+
+	if (ID_DET >= 2) {
+		FTS_ERROR(
+			"GPIO combination not supported, skipping SPI driver init");
+		FTS_FUNC_EXIT();
+		return -ENODEV;
+	}
+
 	ret = spi_register_driver(&fts_ts_spi_driver);
 	if (ret < 0) {
 		FTS_ERROR("Focaltech touch screen driver init failed!");
 	}
+
 	FTS_FUNC_EXIT();
 	return ret;
 }
