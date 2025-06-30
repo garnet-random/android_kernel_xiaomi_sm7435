@@ -445,8 +445,6 @@ int fts_fwdbg_irq_handler(struct fts_ts_data *ts_data);
 void fts_fwdbg_handle_reset(struct fts_ts_data *ts_data);
 int fts_fwdbg_recovery(struct fts_ts_data *ts_data);
 
-int fts_check_ts_gpio(struct device *dev);
-
 //int fts_fhp_init(struct fts_ts_data *ts_data);
 //void fts_fhp_exit(struct fts_ts_data *ts_data);
 //int fts_fhp_irq_handler(struct fts_ts_data *ts_data);
