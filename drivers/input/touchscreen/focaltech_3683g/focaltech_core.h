@@ -312,6 +312,7 @@ struct fts_ts_data {
 	int fod_status;
 	u8 gesture_status;
 	struct xiaomi_touch_interface xiaomi_touch;
+	bool nonui_enabled;
 };
 
 enum GESTURE_MODE_TYPE {

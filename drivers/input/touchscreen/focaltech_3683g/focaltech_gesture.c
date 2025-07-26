@@ -362,6 +362,11 @@ int fts_gesture_readdata(struct fts_ts_data *ts_data, u8 *touch_buf)
 	struct input_dev *input_dev = ts_data->input_dev;
 	struct fts_gesture_st *gesture = &fts_gesture_data;
 
+    if (ts_data->nonui_enabled) {
+        FTS_INFO("non-UI mode is enabled, skip gesture reporting");
+        return 0;
+    }
+
 	ret = fts_read_reg(FTS_REG_GESTURE_EN, &gesture_en);
 	if (gesture_en != ENABLE) {
 		FTS_DEBUG("gesture not enable in fw, don't process gesture");

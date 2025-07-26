@@ -2412,6 +2412,8 @@ static int fts_get_mode_value(void *private, enum touch_mode mode)
         return (fts_data->gesture_status & GESTURE_SINGLETAP_EN) ? 1 : 0;
     case TOUCH_MODE_FOD_PRESS_GESTURE:
         return (fts_data->gesture_status & GESTURE_FOD_EN) ? 1 : 0;
+    case TOUCH_MODE_NONUI_MODE:
+        return fts_data->nonui_enabled ? 2 : 0;
     default:
         return -EINVAL;
     }
@@ -2431,6 +2433,9 @@ static int fts_set_cur_value(void *private, enum touch_mode mode, int value)
 		break;
 	case TOUCH_MODE_FOD_PRESS_GESTURE:
 		fts_update_gesture_state(fts_data, GESTURE_FOD, value != 0 ? true : false);
+		break;
+	case TOUCH_MODE_NONUI_MODE:
+		fts_data->nonui_enabled = value != 0;
 		break;
 	default:
 		FTS_ERROR("handler got mode %d with value %d, not implemented",
